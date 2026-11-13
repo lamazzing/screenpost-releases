@@ -1,0 +1,45 @@
+name: release-check
+
+# Fresh-Mac check of the published ScreenPost build. Installs the notarized app on a clean GitHub-hosted
+# macOS runner, walks onboarding with the Accessibility API, takes a capture and saves it.
+# It never connects X, never posts and never buys. See e2e/README.md.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"   # weekly, Monday 06:17 UTC
+  push:
+    branches: [e2e]        # iteration only; this trigger can be removed once the check is stable
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: macOS ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build spdrive
+        run: swift build -c release --package-path e2e/spdrive
+
+      - name: Release check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+        run: e2e/release-check.sh
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-check-${{ matrix.os }}
+          path: artifacts/
+          if-no-files-found: warn
