@@ -9,8 +9,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "17 6 * * 1"   # weekly, Monday 06:17 UTC
-  push:
-    branches: [e2e]        # iteration only; this trigger can be removed once the check is stable
 
 permissions:
   contents: read
