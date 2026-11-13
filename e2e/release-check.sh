@@ -348,12 +348,14 @@ step "Capture card Save writes a PNG to the Desktop" s_card_save
 s_history() {
   sp menu-extra "History…|History" || return 1
   sp wait-window "ScreenPost" --timeout 15 || return 1
-  sp assert-exists "Edit|Open capture" --window "ScreenPost" || return 1
-  sp assert-exists "Copy" --window "ScreenPost" || return 1
-  sp assert-exists "Share Link|Copy Link" --window "ScreenPost" || return 1
-  sp assert-exists "Post to X" --window "ScreenPost"
+  # Card actions only exist while the pointer is over a card: hover the newest card's size caption.
+  sp hover "1,024×768|600×400" --window "ScreenPost" || return 1
+  sleep 1
+  spdump "$ART/dump-history.txt" --window "ScreenPost"
+  sp assert-exists "Edit|Open capture" --window "ScreenPost" --timeout 5 || return 1
+  sp assert-exists "Copy" --window "ScreenPost" --timeout 5 || return 1
+  sp assert-exists "Share Link|Copy Link" --window "ScreenPost" --timeout 5 || return 1
+  sp assert-exists "Post to X" --window "ScreenPost" --timeout 5
 }
 step "History shows capture card actions" s_history
-spdump "$ART/dump-history.txt" --window "ScreenPost"
-
 finish "scenario complete"
