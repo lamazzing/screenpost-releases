@@ -32,3 +32,7 @@ mouse (except `drag`). Run `spdrive --help` for the command list. Read-only loca
 
     swift build -c release --package-path e2e/spdrive
     e2e/spdrive/.build/release/spdrive dump --window ScreenPost
+
+Global options: `--bundle <id>` (default `com.luca.screenpost`), `--process <name>` (target a process by name, used
+to press "Allow" on macOS system consent dialogs), `--timeout S`, `--window <title>`, `--role`, `--json`.
+`move x y`, `hover`, `rightclick` and `drag` move the real pointer and are for CI only.

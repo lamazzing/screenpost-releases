@@ -630,6 +630,36 @@ func cmdDrag(_ o: Options) {
     emit("drag \(a) -> \(b)", json: ["ok": true])
 }
 
+func cmdMove(_ o: Options) {
+    let n = o.positional.compactMap { Double($0) }
+    guard n.count == 2 else { fail("usage: move x y", code: 2) }
+    let p = CGPoint(x: n[0], y: n[1])
+    CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+    sleepSeconds(0.3)
+    emit("move \(p)", json: ["ok": true])
+}
+
+/// hover <label> / rightclick <label>: pointer to the centre of the matched element or window (CI only).
+func cmdPointer(_ o: Options, right: Bool) {
+    guard let label = o.positional.first else { fail("usage: \(right ? "rightclick" : "hover") <label>", code: 2) }
+    let (_, app) = appElement(o)
+    let end = deadline(o.timeout)
+    repeat {
+        for f in findAll(app, label, o, pressable: false) {
+            guard let fr = frame(f.el), fr.width > 0 else { continue }
+            let p = CGPoint(x: fr.midX, y: fr.midY)
+            func post(_ t: CGEventType, _ b: CGMouseButton) { CGEvent(mouseEventSource: nil, mouseType: t, mouseCursorPosition: p, mouseButton: b)?.post(tap: .cghidEventTap) }
+            post(.mouseMoved, .left); sleepSeconds(0.3)
+            post(.mouseMoved, .left); sleepSeconds(0.3)
+            if right { post(.rightMouseDown, .right); sleepSeconds(0.1); post(.rightMouseUp, .right); sleepSeconds(0.4) }
+            emit("\(right ? "rightclick" : "hover") '\(label)' at \(Int(p.x)),\(Int(p.y))", json: ["ok": true, "x": p.x, "y": p.y])
+            return
+        }
+        sleepSeconds(0.25)
+    } while Date() < end
+    describeFailure(app, o, what: "\(right ? "rightclick" : "hover") '\(label)': no element with a frame after \(o.timeout)s")
+}
+
 func cmdDump(_ o: Options) {
     let (_, app) = appElement(o)
     var lines: [[String: Any]] = []
@@ -681,10 +711,12 @@ usage: spdrive <command> [args] [--bundle id | --process name] [--timeout S] [--
   menu <Menu> <Item> [<Subitem>...]     app's main menu
   key <combo> [--global]                e.g. cmd+shift+4 (posted to the app's pid; --global posts to the HID tap)
   drag x1 y1 x2 y2                      moves the real mouse (CI only)
+  move x y                              move the real mouse pointer (CI only; reveals hover-only controls)
+  hover <label>|rightclick <label>      pointer to the element/window centre (CI only); hover reveals hover-only controls
   dump [--window title] [--depth N]     print the accessibility tree
 
 Labels match AXTitle/AXDescription/AXIdentifier/AXValue, exact then case-insensitive contains,
-then AXHelp. 'a|b' means either label. Default --bundle com.luca.screenpost, --timeout 10.
+then AXHelp. 'a|b' means either label. --process <name> targets a process by name instead of a bundle id (system dialogs). Default --bundle com.luca.screenpost, --timeout 10.
 Exit codes: 0 ok, 1 failed, 2 usage, 3 not trusted / app not running.
 """
 
@@ -714,6 +746,9 @@ case "menu-extra": cmdMenuExtra(opts)
 case "menu": cmdMenu(opts)
 case "key": cmdKey(opts)
 case "drag": cmdDrag(opts)
+case "move": cmdMove(opts)
+case "hover": cmdPointer(opts, right: false)
+case "rightclick": cmdPointer(opts, right: true)
 case "dump": cmdDump(opts)
 default: fail("unknown command '\(command)'\n\n\(usage)", code: 2)
 }

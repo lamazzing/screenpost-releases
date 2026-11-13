@@ -71,6 +71,9 @@ dismiss_system_dialog() {
   return 1
 }
 
+# The capture card is a floating panel whose action buttons only exist while the pointer is over it.
+reveal_card() { "$SPDRIVE" hover "com.luca.screenpost.capture-chrome" --timeout 8 >>"$SPLOG" 2>&1 || true; sleep 1; }
+
 finish() {
   log "finishing: $1"
   pkill -x ScreenPost >/dev/null 2>&1 || true
@@ -201,7 +204,8 @@ d = {}
 if os.path.exists(path):
     try: d = plistlib.load(open(path, 'rb'))
     except Exception: d = {}
-d[exe] = datetime.datetime(2099, 1, 1)
+far = datetime.datetime(3024, 1, 1)
+d[exe] = {'kScreenCaptureApprovalLastAlerted': far, 'kScreenCapturePrivacyHintDate': far, 'kScreenCaptureAlertableUsageCount': 0}
 plistlib.dump(d, open(path, 'wb'))
 print("replayd approvals:", path, list(d.keys()))
 PY
@@ -310,12 +314,14 @@ s_first_capture() {
   sleep 2
   "$SPDRIVE" windows >"$ART/windows-after-capture.txt" 2>&1 || true
   spdump "$ART/dump-after-first-capture.txt"
-  sp wait-text "Save to Desktop|Saved to Desktop|Copied" --timeout 3 || true
-  sp assert-exists "Edit" --role button
+  reveal_card
+  spdump "$ART/dump-card-hover.txt"
+  sp assert-exists "Edit" --role button --timeout 5
 }
 crit "Finish onboarding, first capture by area drag" s_first_capture
 
 s_edit_save() {
+  reveal_card
   sp press "Edit" --role button --timeout 15 || return 1
   sp wait-window "Screenshot" --timeout 20 || return 1
   spdump "$ART/dump-editor.txt" --window "Screenshot"
@@ -330,12 +336,13 @@ s_full_capture() {
   sleep 3
   dismiss_system_dialog || true
   sleep 2
+  reveal_card
   spdump "$ART/dump-capture-card.txt"
-  sp assert-exists "Edit" --role button --timeout 15
+  sp assert-exists "Edit" --role button --timeout 5
 }
 step "Full-screen capture via the menu bar item shows the capture card" s_full_capture
 
-s_card_save() { sp press "Save" --role button --timeout 15 && new_desktop_png 20; }
+s_card_save() { reveal_card; sp press "Save" --role button --timeout 15 && new_desktop_png 20; }
 step "Capture card Save writes a PNG to the Desktop" s_card_save
 
 s_history() {
