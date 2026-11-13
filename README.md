@@ -4,4 +4,4 @@ Signed & notarized builds of [ScreenPost](https://screenpost.app) — the macOS 
 
 **Download the latest:** [ScreenPost.zip](https://github.com/lamazzing/screenpost-releases/releases/latest/download/ScreenPost.zip)
 
-macOS 14+ · Apple silicon & Intel · [screenpost.app](https://screenpost.app)
+macOS 14+ · Apple silicon · [screenpost.app](https://screenpost.app)
