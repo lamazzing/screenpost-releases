@@ -16,6 +16,7 @@ struct Options {
     var role: String?
     var json = false
     var global = false
+    var process: String?
     var depth = 40
     var positional: [String] = []
 }
@@ -34,6 +35,7 @@ func parseOptions(_ args: [String]) -> Options {
         case "--bundle": o.bundle = value(a)
         case "--timeout": o.timeout = Double(value(a)) ?? 10
         case "--window": o.window = value(a)
+        case "--process": o.process = value(a)
         case "--role": o.role = value(a).lowercased()
         case "--depth": o.depth = Int(value(a)) ?? 40
         case "--json": o.json = true
@@ -150,9 +152,15 @@ func runningApp(_ bundle: String) -> NSRunningApplication? {
 
 func appElement(_ o: Options) -> (NSRunningApplication, AXUIElement) {
     let end = deadline(o.timeout)
-    var app = runningApp(o.bundle)
-    while app == nil && Date() < end { sleepSeconds(0.25); app = runningApp(o.bundle) }
-    guard let app else { fail("app \(o.bundle) is not running", code: 3) }
+    func lookup() -> NSRunningApplication? {
+        if let name = o.process {
+            return NSWorkspace.shared.runningApplications.first { $0.localizedName == name || $0.executableURL?.lastPathComponent == name }
+        }
+        return runningApp(o.bundle)
+    }
+    var app = lookup()
+    while app == nil && Date() < end { sleepSeconds(0.25); app = lookup() }
+    guard let app else { fail("app \(o.process ?? o.bundle) is not running", code: 3) }
     let el = AXUIElementCreateApplication(app.processIdentifier)
     AXUIElementSetMessagingTimeout(el, 3)
     // SwiftUI exposes its tree only when an assistive client asks for it.
@@ -659,7 +667,7 @@ func cmdCheck(_ o: Options) {
 let usage = """
 spdrive: drive a macOS app through the Accessibility API.
 
-usage: spdrive <command> [args] [--bundle id] [--timeout S] [--window title] [--role r] [--json]
+usage: spdrive <command> [args] [--bundle id | --process name] [--timeout S] [--window title] [--role r] [--json]
 
   check                                 report Accessibility / Screen Recording trust of this process
   windows                               list windows (id, title, subrole)

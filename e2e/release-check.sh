@@ -59,6 +59,18 @@ crit() { step "$@" || finish "aborted: critical step failed"; }
 
 sp() { echo "+ spdrive $*" >>"$SPLOG"; "$SPDRIVE" "$@" >>"$SPLOG" 2>&1; local rc=$?; [ $rc -ne 0 ] && tail -n 40 "$SPLOG" >>"$LOG"; return $rc; }
 
+spdump() { local out="$1"; shift; "$SPDRIVE" dump "$@" >"$out" 2>&1 || true; }
+
+# Some macOS versions put a system consent dialog in front (e.g. the macOS 15 "bypass the system private window picker"
+# prompt). Press its Allow button if one is up. Only ever presses "Allow" in system UI processes.
+dismiss_system_dialog() {
+  local n
+  for n in UserNotificationCenter CoreServicesUIAgent "Control Center" replayd SystemUIServer; do
+    if "$SPDRIVE" press "Allow" --process "$n" --timeout 1 >>"$SPLOG" 2>&1; then echo "dismissed system dialog from $n"; return 0; fi
+  done
+  return 1
+}
+
 finish() {
   log "finishing: $1"
   pkill -x ScreenPost >/dev/null 2>&1 || true
@@ -181,6 +193,7 @@ grant_app_permissions() {
   if [ "$OSMAJOR" -ge 15 ]; then
     local plist="$HOME/Library/Group Containers/group.com.apple.replayd/ScreenCaptureApprovals.plist"
     mkdir -p "$(dirname "$plist")"
+    echo "replayd approvals before:"; plutil -p "$plist" 2>&1 || true
     python3 - "$plist" "$APP/Contents/MacOS/ScreenPost" <<'PY'
 import plistlib, sys, os, datetime
 path, exe = sys.argv[1], sys.argv[2]
@@ -193,7 +206,7 @@ plistlib.dump(d, open(path, 'wb'))
 print("replayd approvals:", path, list(d.keys()))
 PY
   fi
-  sudo killall tccd 2>/dev/null || true
+  sudo killall tccd replayd 2>/dev/null || true
   show_tcc
   sudo sqlite3 "$SYS_DB" "select 1 from access where service='kTCCServiceScreenCapture' and client='$BUNDLE_ID' and auth_value=2;" | grep -q 1 || return 1
   sleep 2
@@ -252,7 +265,7 @@ phase1() {
 }
 if [ "$PRE_GRANT_CHECK" = "1" ]; then
   step "Onboarding Screen Recording step shown without permission" phase1
-  sp dump --window "Welcome" >"$ART/dump-screen-recording-step.txt" 2>&1 || true
+  spdump "$ART/dump-screen-recording-step.txt" --window "Welcome"
   quit_app
 fi
 
@@ -262,7 +275,7 @@ touch "$MARK"
 
 crit "Launch ScreenPost with permission granted" launch_app
 crit "Welcome window appears" sp wait-window "Welcome to ScreenPost" --timeout 40
-sp dump --window "Welcome" >"$ART/dump-welcome.txt" 2>&1 || true
+spdump "$ART/dump-welcome.txt" --window "Welcome"
 
 # Resume-tolerant: if phase 1 left the app on step 1, "Set up ScreenPost" is simply absent.
 s_welcome() { sp press "Set up ScreenPost" --timeout 4 || sp wait-text "Allow Screen Recording|Screen Recording Allowed" --timeout 10; }
@@ -292,26 +305,35 @@ s_first_capture() {
   sp press "Take your first capture" || return 1
   sleep 2
   sp drag 300 250 900 650 || return 1
-  sp wait-text "Post to X" --timeout 15
+  sleep 3
+  dismiss_system_dialog || true
+  sleep 2
+  "$SPDRIVE" windows >"$ART/windows-after-capture.txt" 2>&1 || true
+  spdump "$ART/dump-after-first-capture.txt"
+  sp wait-text "Save to Desktop|Saved to Desktop|Copied" --timeout 3 || true
+  sp assert-exists "Edit" --role button
 }
 crit "Finish onboarding, first capture by area drag" s_first_capture
 
 s_edit_save() {
   sp press "Edit" --role button --timeout 15 || return 1
   sp wait-window "Screenshot" --timeout 20 || return 1
+  spdump "$ART/dump-editor.txt" --window "Screenshot"
   sp press "Save to Desktop" --timeout 20 || return 1
   new_desktop_png 20
 }
 step "Capture card -> Edit -> Save to Desktop writes a PNG" s_edit_save
-sp dump --window "Screenshot" >"$ART/dump-editor.txt" 2>&1 || true
 step "Close the editor" sp press "Done" --timeout 10
 
 s_full_capture() {
   sp menu-extra "Full screen|Fullscreen|Capture Full Screen" || return 1
-  sp wait-text "Post to X" --timeout 20
+  sleep 3
+  dismiss_system_dialog || true
+  sleep 2
+  spdump "$ART/dump-capture-card.txt"
+  sp assert-exists "Edit" --role button --timeout 15
 }
 step "Full-screen capture via the menu bar item shows the capture card" s_full_capture
-sp dump >"$ART/dump-capture-card.txt" 2>&1 || true
 
 s_card_save() { sp press "Save" --role button --timeout 15 && new_desktop_png 20; }
 step "Capture card Save writes a PNG to the Desktop" s_card_save
@@ -325,6 +347,6 @@ s_history() {
   sp assert-exists "Post to X" --window "ScreenPost"
 }
 step "History shows capture card actions" s_history
-sp dump --window "ScreenPost" >"$ART/dump-history.txt" 2>&1 || true
+spdump "$ART/dump-history.txt" --window "ScreenPost"
 
 finish "scenario complete"
