@@ -354,9 +354,10 @@ s_history() {
   spdump "$ART/dump-history.txt" --window "ScreenPost"
   sp assert-exists "Edit|Open capture" --window "ScreenPost" --timeout 5 || return 1
   sp assert-exists "Copy" --window "ScreenPost" --timeout 5 || return 1
-  # 1.6.1 shows Edit, Copy, Send (post) and Trash; 1.6.2 adds a link action. Never pressed.
+  # 1.6.1 shows Edit, Copy, Send (post) and Trash. 1.6.2+ shows Edit, Copy, Share Link, Post to X and a
+  # "More" menu (Save, Share…, Delete). Never pressed.
   sp assert-exists "Send|Post to X" --window "ScreenPost" --timeout 5 || return 1
-  sp assert-exists "Trash|Delete" --window "ScreenPost" --timeout 5
+  sp assert-exists "Trash|More" --window "ScreenPost" --timeout 5
 }
 step "History shows capture card actions" s_history
 finish "scenario complete"
