@@ -292,10 +292,15 @@ s_overlay() { sp wait-text "quick-access overlay" --timeout 10 && sp press "Cont
 crit "Onboarding: Quick-access overlay" s_overlay
 s_connectx() {
   sp wait-text "Connect X" --timeout 10 || return 1
-  sp assert-exists "Skip for now" || return 1
-  sp press "Skip for now" --timeout 10   # never connect X
+  # Never connect X. 1.6.2 had a "Skip for now" button; from 1.6.3 Continue works without an account.
+  if sp assert-exists "Skip for now" --timeout 2 2>/dev/null; then
+    sp press "Skip for now" --timeout 10
+  else
+    sp assert-enabled "Continue" || return 1
+    sp press "Continue" --role button --timeout 10
+  fi
 }
-crit "Onboarding: Connect X, skip for now" s_connectx
+crit "Onboarding: Connect X, continue without connecting" s_connectx
 s_ai() {
   sp wait-text "Set up AI" --timeout 10 || return 1
   sp press "Continue|Start with free uses for now" --role button   # free uses, no key
