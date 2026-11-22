@@ -238,10 +238,11 @@ quit_app() {
 }
 
 MARK="$WORK/mark"
-new_desktop_png() { # waits for a non-trivial PNG on the Desktop newer than $MARK
+new_desktop_png() { # waits for a non-empty PNG on the Desktop newer than $MARK
+  # 2 KB, not 10: a capture of the Intel runner's plain black desktop compresses to ~8 KB.
   local end=$((SECONDS+${1:-20})) f
   while [ $SECONDS -lt $end ]; do
-    f="$(find "$DESKTOP" -maxdepth 1 -name '*.png' -newer "$MARK" -size +10k 2>/dev/null | head -1)"
+    f="$(find "$DESKTOP" -maxdepth 1 -name '*.png' -newer "$MARK" -size +2k 2>/dev/null | head -1)"
     if [ -n "$f" ]; then echo "new file: $f ($(stat -f %z "$f") bytes)"; sips -g pixelWidth -g pixelHeight "$f" | tail -2; touch "$MARK"; return 0; fi
     sleep 1
   done
